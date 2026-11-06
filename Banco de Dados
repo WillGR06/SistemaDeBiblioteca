@@ -1,0 +1,238 @@
+CREATE DATABASE IF NOT EXISTS biblioteca_digital
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+USE biblioteca_digital;
+
+-- ======================
+-- CADASTROS BÁSICOS
+-- ======================
+
+CREATE TABLE autor (
+  id_autor INT AUTO_INCREMENT PRIMARY KEY,
+  nome VARCHAR(150) NOT NULL,
+  biografia TEXT,
+  nacionalidade VARCHAR(60)
+) ENGINE=InnoDB;
+
+CREATE TABLE genero (
+  id_genero INT AUTO_INCREMENT PRIMARY KEY,
+  nome VARCHAR(80) NOT NULL UNIQUE
+) ENGINE=InnoDB;
+
+CREATE TABLE editora (
+  id_editora INT AUTO_INCREMENT PRIMARY KEY,
+  nome VARCHAR(120) NOT NULL,
+  pais VARCHAR(60)
+) ENGINE=InnoDB;
+
+-- ======================
+-- USUÁRIOS
+-- ======================
+
+CREATE TABLE usuario (
+  id_usuario INT AUTO_INCREMENT PRIMARY KEY,
+  nome VARCHAR(150) NOT NULL,
+  email VARCHAR(150) NOT NULL UNIQUE,
+  senha_hash VARCHAR(255) NOT NULL,
+  perfil ENUM('usuario','administrador') NOT NULL DEFAULT 'usuario',
+  data_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP,
+  ativo BOOLEAN DEFAULT TRUE
+) ENGINE=InnoDB;
+
+-- ======================
+-- OBRA (conteúdo base)
+-- ======================
+
+CREATE TABLE obra (
+  id_obra INT AUTO_INCREMENT PRIMARY KEY,
+  titulo VARCHAR(200) NOT NULL,
+  sinopse TEXT,
+  idioma VARCHAR(30) DEFAULT 'Português',
+  ano_publicacao YEAR,
+  id_editora INT,
+  capa_url VARCHAR(255),
+  id_admin_cadastro INT NULL,
+  data_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (id_editora) REFERENCES editora(id_editora),
+  FOREIGN KEY (id_admin_cadastro) REFERENCES usuario(id_usuario),
+  FULLTEXT INDEX ft_obra (titulo, sinopse)
+) ENGINE=InnoDB;
+
+CREATE TABLE obra_autor (
+  id_obra INT NOT NULL,
+  id_autor INT NOT NULL,
+  PRIMARY KEY (id_obra, id_autor),
+  FOREIGN KEY (id_obra) REFERENCES obra(id_obra) ON DELETE CASCADE,
+  FOREIGN KEY (id_autor) REFERENCES autor(id_autor) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE obra_genero (
+  id_obra INT NOT NULL,
+  id_genero INT NOT NULL,
+  PRIMARY KEY (id_obra, id_genero),
+  FOREIGN KEY (id_obra) REFERENCES obra(id_obra) ON DELETE CASCADE,
+  FOREIGN KEY (id_genero) REFERENCES genero(id_genero) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ======================
+-- FORMATOS DIGITAIS
+-- valor_emprestimo = preço para ler por 30 dias
+-- ======================
+
+CREATE TABLE ebook (
+  id_ebook INT AUTO_INCREMENT PRIMARY KEY,
+  id_obra INT NOT NULL,
+  isbn VARCHAR(20) UNIQUE,
+  formato ENUM('PDF','EPUB','MOBI') NOT NULL,
+  tamanho_mb DECIMAL(8,2),
+  numero_paginas INT,
+  arquivo_url VARCHAR(255) NOT NULL,
+  valor_emprestimo DECIMAL(10,2) NOT NULL DEFAULT 0,
+  FOREIGN KEY (id_obra) REFERENCES obra(id_obra) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE audiobook (
+  id_audiobook INT AUTO_INCREMENT PRIMARY KEY,
+  id_obra INT NOT NULL,
+  narrador VARCHAR(150),
+  duracao_minutos INT,
+  formato ENUM('MP3','M4B','AAC') NOT NULL,
+  tamanho_mb DECIMAL(8,2),
+  arquivo_url VARCHAR(255) NOT NULL,
+  valor_emprestimo DECIMAL(10,2) NOT NULL DEFAULT 0,
+  FOREIGN KEY (id_obra) REFERENCES obra(id_obra) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ======================
+-- EMPRÉSTIMO (compra para ler por 30 dias)
+-- data_vencimento = data_emprestimo + 30 dias (definida na aplicação/INSERT)
+-- data_devolucao = preenchida quando o prazo acaba ou o usuário devolve antes
+-- ======================
+
+CREATE TABLE emprestimo (
+  id_emprestimo INT AUTO_INCREMENT PRIMARY KEY,
+  id_usuario INT NOT NULL,
+  id_ebook INT NULL,
+  id_audiobook INT NULL,
+  data_emprestimo DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  data_vencimento DATETIME NOT NULL,
+  data_bloqueio DATETIME NULL,
+  data_devolucao DATETIME NULL,
+  status ENUM('ativo','devolvido','expirado') NOT NULL DEFAULT 'ativo',
+  valor DECIMAL(10,2) NOT NULL,
+  FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario),
+  FOREIGN KEY (id_ebook) REFERENCES ebook(id_ebook),
+  FOREIGN KEY (id_audiobook) REFERENCES audiobook(id_audiobook),
+  CHECK ((id_ebook IS NOT NULL AND id_audiobook IS NULL)
+      OR (id_ebook IS NULL AND id_audiobook IS NOT NULL))
+) ENGINE=InnoDB;
+
+CREATE TABLE pagamento (
+  id_pagamento INT AUTO_INCREMENT PRIMARY KEY,
+  id_emprestimo INT NOT NULL,
+  forma ENUM('cartao_credito','cartao_debito','pix','boleto') NOT NULL,
+  status ENUM('pendente','aprovado','recusado','estornado') NOT NULL DEFAULT 'pendente',
+  valor DECIMAL(10,2) NOT NULL,
+  data_pagamento DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (id_emprestimo) REFERENCES emprestimo(id_emprestimo)
+) ENGINE=InnoDB;
+
+-- Progresso de leitura/escuta durante o empréstimo
+CREATE TABLE acesso_digital (
+  id_acesso INT AUTO_INCREMENT PRIMARY KEY,
+  id_emprestimo INT NOT NULL,
+  data_acesso DATETIME DEFAULT CURRENT_TIMESTAMP,
+  progresso_percentual DECIMAL(5,2) DEFAULT 0,
+  FOREIGN KEY (id_emprestimo) REFERENCES emprestimo(id_emprestimo) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE avaliacao (
+  id_avaliacao INT AUTO_INCREMENT PRIMARY KEY,
+  id_usuario INT NOT NULL,
+  id_obra INT NOT NULL,
+  nota TINYINT NOT NULL CHECK (nota BETWEEN 1 AND 5),
+  comentario TEXT,
+  data_avaliacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (id_usuario, id_obra),
+  FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario) ON DELETE CASCADE,
+  FOREIGN KEY (id_obra) REFERENCES obra(id_obra) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ======================
+-- ADMINISTRAÇÃO
+-- Registra o que cada administrador cadastrou, editou ou excluiu
+-- ======================
+
+CREATE TABLE log_administracao (
+  id_log INT AUTO_INCREMENT PRIMARY KEY,
+  id_administrador INT NOT NULL,
+  tabela_afetada VARCHAR(50) NOT NULL,
+  id_registro INT NOT NULL,
+  acao ENUM('inserir','editar','excluir') NOT NULL,
+  descricao VARCHAR(255),
+  data_acao DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (id_administrador) REFERENCES usuario(id_usuario)
+) ENGINE=InnoDB;
+
+-- ======================
+-- VIEW: quando o livro foi emprestado e quando foi bloqueado
+-- ======================
+
+CREATE VIEW vw_status_emprestimo AS
+SELECT
+  e.id_emprestimo,
+  u.nome AS usuario,
+  COALESCE(oe.titulo, oa.titulo) AS titulo,
+  CASE WHEN e.id_ebook IS NOT NULL THEN 'E-book' ELSE 'Audiobook' END AS tipo,
+  e.data_emprestimo AS emprestado_em,
+  e.data_vencimento,
+  e.data_bloqueio AS bloqueado_em,
+  e.data_devolucao,
+  CASE
+    WHEN e.status = 'devolvido' THEN 'Devolvido'
+    WHEN e.status = 'ativo' AND e.data_vencimento >= NOW() THEN 'Emprestado'
+    ELSE 'Bloqueado'
+  END AS situacao
+FROM emprestimo e
+JOIN usuario u ON u.id_usuario = e.id_usuario
+LEFT JOIN ebook eb ON eb.id_ebook = e.id_ebook
+LEFT JOIN obra oe ON oe.id_obra = eb.id_obra
+LEFT JOIN audiobook ab ON ab.id_audiobook = e.id_audiobook
+LEFT JOIN obra oa ON oa.id_obra = ab.id_obra;
+
+-- ======================
+-- PERMISSÕES (MySQL 8): só administradores alteram o catálogo
+-- ======================
+
+CREATE ROLE IF NOT EXISTS 'admin_biblioteca', 'leitor_biblioteca';
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON biblioteca_digital.* TO 'admin_biblioteca';
+
+GRANT SELECT ON biblioteca_digital.obra TO 'leitor_biblioteca';
+GRANT SELECT ON biblioteca_digital.autor TO 'leitor_biblioteca';
+GRANT SELECT ON biblioteca_digital.genero TO 'leitor_biblioteca';
+GRANT SELECT ON biblioteca_digital.editora TO 'leitor_biblioteca';
+GRANT SELECT ON biblioteca_digital.obra_autor TO 'leitor_biblioteca';
+GRANT SELECT ON biblioteca_digital.obra_genero TO 'leitor_biblioteca';
+GRANT SELECT ON biblioteca_digital.ebook TO 'leitor_biblioteca';
+GRANT SELECT ON biblioteca_digital.audiobook TO 'leitor_biblioteca';
+GRANT SELECT, INSERT ON biblioteca_digital.emprestimo TO 'leitor_biblioteca';
+GRANT SELECT, INSERT ON biblioteca_digital.pagamento TO 'leitor_biblioteca';
+GRANT SELECT, INSERT, UPDATE ON biblioteca_digital.acesso_digital TO 'leitor_biblioteca';
+GRANT SELECT, INSERT, UPDATE ON biblioteca_digital.avaliacao TO 'leitor_biblioteca';
+
+-- ======================
+-- DEVOLUÇÃO AUTOMÁTICA (bloqueio após 30 dias)
+-- Para ativar o agendador, execute antes: SET GLOBAL event_scheduler = ON;
+-- ======================
+
+CREATE EVENT IF NOT EXISTS ev_expirar_emprestimos
+ON SCHEDULE EVERY 1 HOUR
+DO
+  UPDATE emprestimo
+     SET status = 'expirado',
+         data_bloqueio = data_vencimento,
+         data_devolucao = data_vencimento
+   WHERE status = 'ativo'
+     AND data_vencimento < NOW();
