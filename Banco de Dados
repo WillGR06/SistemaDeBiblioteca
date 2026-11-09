@@ -8,6 +8,7 @@ USE biblioteca_digital;
 -- CADASTROS BÁSICOS
 -- ======================
 
+-- AUTOR: Autores das obras (nome, biografia, nacionalidade). Se liga à obra pela tabela obra_autor.
 CREATE TABLE autor (
   id_autor INT AUTO_INCREMENT PRIMARY KEY,
   nome VARCHAR(150) NOT NULL,
@@ -15,11 +16,13 @@ CREATE TABLE autor (
   nacionalidade VARCHAR(60)
 ) ENGINE=InnoDB;
 
+-- GENERO: Gêneros literários (ficção, romance, técnico...). Se liga à obra pela tabela obra_genero.
 CREATE TABLE genero (
   id_genero INT AUTO_INCREMENT PRIMARY KEY,
   nome VARCHAR(80) NOT NULL UNIQUE
 ) ENGINE=InnoDB;
 
+-- EDITORA: Editoras que publicam as obras.
 CREATE TABLE editora (
   id_editora INT AUTO_INCREMENT PRIMARY KEY,
   nome VARCHAR(120) NOT NULL,
@@ -30,6 +33,7 @@ CREATE TABLE editora (
 -- USUÁRIOS
 -- ======================
 
+-- USUARIO: Contas do sistema. O campo perfil define se é usuário comum ou administrador.
 CREATE TABLE usuario (
   id_usuario INT AUTO_INCREMENT PRIMARY KEY,
   nome VARCHAR(150) NOT NULL,
@@ -44,6 +48,7 @@ CREATE TABLE usuario (
 -- OBRA (conteúdo base)
 -- ======================
 
+-- OBRA: Conteúdo base de um livro (título, sinopse, idioma, ano, capa). Cada obra pode ter e-book e/ou audiobook. Guarda qual administrador a cadastrou.
 CREATE TABLE obra (
   id_obra INT AUTO_INCREMENT PRIMARY KEY,
   titulo VARCHAR(200) NOT NULL,
@@ -59,6 +64,7 @@ CREATE TABLE obra (
   FULLTEXT INDEX ft_obra (titulo, sinopse)
 ) ENGINE=InnoDB;
 
+-- OBRA_AUTOR: Relação N:N entre obra e autor (uma obra pode ter vários autores e vice-versa).
 CREATE TABLE obra_autor (
   id_obra INT NOT NULL,
   id_autor INT NOT NULL,
@@ -67,6 +73,7 @@ CREATE TABLE obra_autor (
   FOREIGN KEY (id_autor) REFERENCES autor(id_autor) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- OBRA_GENERO: Relação N:N entre obra e gênero.
 CREATE TABLE obra_genero (
   id_obra INT NOT NULL,
   id_genero INT NOT NULL,
@@ -80,6 +87,7 @@ CREATE TABLE obra_genero (
 -- valor_emprestimo = preço para ler por 30 dias
 -- ======================
 
+-- EBOOK: Versão e-book de uma obra (formato, tamanho, arquivo) e o valor cobrado pelo empréstimo de 30 dias.
 CREATE TABLE ebook (
   id_ebook INT AUTO_INCREMENT PRIMARY KEY,
   id_obra INT NOT NULL,
@@ -92,6 +100,7 @@ CREATE TABLE ebook (
   FOREIGN KEY (id_obra) REFERENCES obra(id_obra) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- AUDIOBOOK: Versão em áudio de uma obra (narrador, duração, arquivo) e o valor cobrado pelo empréstimo de 30 dias.
 CREATE TABLE audiobook (
   id_audiobook INT AUTO_INCREMENT PRIMARY KEY,
   id_obra INT NOT NULL,
@@ -110,6 +119,7 @@ CREATE TABLE audiobook (
 -- data_devolucao = preenchida quando o prazo acaba ou o usuário devolve antes
 -- ======================
 
+-- EMPRESTIMO: Compra de um e-book OU audiobook para ler por 30 dias. Guarda datas de empréstimo, vencimento, bloqueio e devolução, e o status (ativo, devolvido, expirado).
 CREATE TABLE emprestimo (
   id_emprestimo INT AUTO_INCREMENT PRIMARY KEY,
   id_usuario INT NOT NULL,
@@ -128,6 +138,7 @@ CREATE TABLE emprestimo (
       OR (id_ebook IS NULL AND id_audiobook IS NOT NULL))
 ) ENGINE=InnoDB;
 
+-- PAGAMENTO: Pagamento de um empréstimo (forma: Pix, cartão ou boleto; status: pendente, aprovado, recusado, estornado).
 CREATE TABLE pagamento (
   id_pagamento INT AUTO_INCREMENT PRIMARY KEY,
   id_emprestimo INT NOT NULL,
@@ -139,6 +150,7 @@ CREATE TABLE pagamento (
 ) ENGINE=InnoDB;
 
 -- Progresso de leitura/escuta durante o empréstimo
+-- ACESSO_DIGITAL: Registra o progresso de leitura/escuta (percentual) durante um empréstimo.
 CREATE TABLE acesso_digital (
   id_acesso INT AUTO_INCREMENT PRIMARY KEY,
   id_emprestimo INT NOT NULL,
@@ -147,6 +159,7 @@ CREATE TABLE acesso_digital (
   FOREIGN KEY (id_emprestimo) REFERENCES emprestimo(id_emprestimo) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- AVALIACAO: Nota (1 a 5) e comentário que um usuário dá a uma obra. Cada usuário avalia cada obra uma vez.
 CREATE TABLE avaliacao (
   id_avaliacao INT AUTO_INCREMENT PRIMARY KEY,
   id_usuario INT NOT NULL,
@@ -164,6 +177,7 @@ CREATE TABLE avaliacao (
 -- Registra o que cada administrador cadastrou, editou ou excluiu
 -- ======================
 
+-- LOG_ADMINISTRACAO: Histórico de ações dos administradores (inserir, editar, excluir) sobre o catálogo.
 CREATE TABLE log_administracao (
   id_log INT AUTO_INCREMENT PRIMARY KEY,
   id_administrador INT NOT NULL,
@@ -179,6 +193,8 @@ CREATE TABLE log_administracao (
 -- VIEW: quando o livro foi emprestado e quando foi bloqueado
 -- ======================
 
+-- VW_STATUS_EMPRESTIMO: mostra cada empréstimo com título, tipo, datas de empréstimo e bloqueio
+-- e a situação atual (Emprestado, Bloqueado ou Devolvido).
 CREATE VIEW vw_status_emprestimo AS
 SELECT
   e.id_emprestimo,
@@ -227,6 +243,8 @@ GRANT SELECT, INSERT, UPDATE ON biblioteca_digital.avaliacao TO 'leitor_bibliote
 -- Para ativar o agendador, execute antes: SET GLOBAL event_scheduler = ON;
 -- ======================
 
+-- EV_EXPIRAR_EMPRESTIMOS: a cada hora marca como 'expirado' os empréstimos vencidos
+-- (bloqueia o acesso e registra data_bloqueio e data_devolucao).
 CREATE EVENT IF NOT EXISTS ev_expirar_emprestimos
 ON SCHEDULE EVERY 1 HOUR
 DO
