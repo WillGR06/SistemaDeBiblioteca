@@ -1,0 +1,345 @@
+-- =====================================================================
+-- BIBLIOTECA DIGITAL: FUNCTIONS, PROCEDURES E TRIGGERS (MySQL 8)
+-- Execute DEPOIS do biblioteca_digital.sql
+-- =====================================================================
+
+USE biblioteca_digital;
+
+-- Permite omitir data_vencimento no INSERT (padrão: agora + 30 dias)
+ALTER TABLE emprestimo
+  MODIFY data_vencimento DATETIME NOT NULL
+  DEFAULT (CURRENT_TIMESTAMP + INTERVAL 30 DAY);
+
+DELIMITER $$
+
+-- =====================================================================
+-- FUNCTIONS
+-- =====================================================================
+
+-- FUNCTION fn_dias_restantes(id_emprestimo): retorna quantos dias faltam para o empréstimo vencer.
+-- Retorna 0 se o empréstimo não estiver ativo ou já tiver vencido.
+DROP FUNCTION IF EXISTS fn_dias_restantes$$
+CREATE FUNCTION fn_dias_restantes(p_id_emprestimo INT)
+RETURNS INT
+NOT DETERMINISTIC
+READS SQL DATA
+BEGIN
+  DECLARE v_vencimento DATETIME;
+  DECLARE v_status VARCHAR(20);
+
+  SELECT data_vencimento, status
+    INTO v_vencimento, v_status
+    FROM emprestimo
+   WHERE id_emprestimo = p_id_emprestimo;
+
+  IF v_status IS NULL OR v_status <> 'ativo' THEN
+    RETURN 0;
+  END IF;
+
+  RETURN GREATEST(DATEDIFF(v_vencimento, NOW()), 0);
+END$$
+
+-- FUNCTION fn_media_avaliacao(id_obra): retorna a nota média (1 a 5) de uma obra.
+-- Retorna 0 se a obra ainda não tiver avaliações.
+DROP FUNCTION IF EXISTS fn_media_avaliacao$$
+CREATE FUNCTION fn_media_avaliacao(p_id_obra INT)
+RETURNS DECIMAL(3,2)
+NOT DETERMINISTIC
+READS SQL DATA
+BEGIN
+  DECLARE v_media DECIMAL(3,2);
+
+  SELECT COALESCE(AVG(nota), 0)
+    INTO v_media
+    FROM avaliacao
+   WHERE id_obra = p_id_obra;
+
+  RETURN v_media;
+END$$
+
+-- =====================================================================
+-- STORED PROCEDURES
+-- =====================================================================
+
+-- Empréstimo (compra para ler por 30 dias) + pagamento + acesso, numa transação
+-- Uso: CALL sp_realizar_emprestimo(1, 3, NULL, 'pix', @id);  SELECT @id;
+-- PROCEDURE sp_realizar_emprestimo: realiza o empréstimo de 30 dias de um e-book OU audiobook.
+-- Valida usuário, livro e empréstimo repetido; cria emprestimo, pagamento e acesso_digital
+-- numa única transação (se algo falhar, desfaz tudo).
+DROP PROCEDURE IF EXISTS sp_realizar_emprestimo$$
+CREATE PROCEDURE sp_realizar_emprestimo(
+  IN  p_id_usuario    INT,
+  IN  p_id_ebook      INT,
+  IN  p_id_audiobook  INT,
+  IN  p_forma         VARCHAR(20),
+  OUT p_id_emprestimo INT
+)
+BEGIN
+  DECLARE v_valor DECIMAL(10,2);
+  DECLARE v_ativo BOOLEAN;
+  DECLARE v_repetido INT;
+
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION
+  BEGIN
+    ROLLBACK;
+    RESIGNAL;
+  END;
+
+  IF (p_id_ebook IS NULL) = (p_id_audiobook IS NULL) THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'Informe apenas um: e-book OU audiobook';
+  END IF;
+
+  SELECT ativo INTO v_ativo FROM usuario WHERE id_usuario = p_id_usuario;
+  IF v_ativo IS NULL OR v_ativo = FALSE THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuário inexistente ou inativo';
+  END IF;
+
+  IF p_id_ebook IS NOT NULL THEN
+    SELECT valor_emprestimo INTO v_valor FROM ebook WHERE id_ebook = p_id_ebook;
+  ELSE
+    SELECT valor_emprestimo INTO v_valor FROM audiobook WHERE id_audiobook = p_id_audiobook;
+  END IF;
+
+  IF v_valor IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Livro não encontrado';
+  END IF;
+
+  SELECT COUNT(*) INTO v_repetido
+    FROM emprestimo
+   WHERE id_usuario = p_id_usuario
+     AND status = 'ativo'
+     AND data_vencimento >= NOW()
+     AND ((p_id_ebook IS NOT NULL AND id_ebook = p_id_ebook)
+       OR (p_id_audiobook IS NOT NULL AND id_audiobook = p_id_audiobook));
+
+  IF v_repetido > 0 THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'Você já possui um empréstimo ativo deste livro';
+  END IF;
+
+  START TRANSACTION;
+
+  INSERT INTO emprestimo (id_usuario, id_ebook, id_audiobook, valor)
+  VALUES (p_id_usuario, p_id_ebook, p_id_audiobook, v_valor);
+
+  SET p_id_emprestimo = LAST_INSERT_ID();
+
+  INSERT INTO pagamento (id_emprestimo, forma, status, valor)
+  VALUES (p_id_emprestimo, p_forma, 'aprovado', v_valor);
+
+  INSERT INTO acesso_digital (id_emprestimo) VALUES (p_id_emprestimo);
+
+  COMMIT;
+END$$
+
+-- Devolução antecipada. Uso: CALL sp_devolver_emprestimo(10);
+-- PROCEDURE sp_devolver_emprestimo(id_emprestimo): devolução antecipada.
+-- Marca o empréstimo como devolvido e registra as datas de devolução e bloqueio.
+DROP PROCEDURE IF EXISTS sp_devolver_emprestimo$$
+CREATE PROCEDURE sp_devolver_emprestimo(IN p_id_emprestimo INT)
+BEGIN
+  DECLARE v_status VARCHAR(20);
+
+  SELECT status INTO v_status FROM emprestimo WHERE id_emprestimo = p_id_emprestimo;
+
+  IF v_status IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Empréstimo não encontrado';
+  END IF;
+
+  IF v_status <> 'ativo' THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Este empréstimo já foi encerrado';
+  END IF;
+
+  UPDATE emprestimo
+     SET status = 'devolvido',
+         data_devolucao = NOW(),
+         data_bloqueio = NOW()
+   WHERE id_emprestimo = p_id_emprestimo;
+END$$
+
+-- =====================================================================
+-- TRIGGERS: EMPRÉSTIMO
+-- =====================================================================
+
+-- Regra dos 30 dias sempre aplicada pelo banco
+-- TRIGGER trg_emprestimo_bi: antes de inserir um empréstimo, define o vencimento
+-- para daqui a 30 dias e o status como ativo.
+DROP TRIGGER IF EXISTS trg_emprestimo_bi$$
+CREATE TRIGGER trg_emprestimo_bi
+BEFORE INSERT ON emprestimo
+FOR EACH ROW
+BEGIN
+  SET NEW.data_vencimento = DATE_ADD(NOW(), INTERVAL 30 DAY);
+  SET NEW.status = 'ativo';
+END$$
+
+-- =====================================================================
+-- TRIGGERS: VALIDAÇÃO DE PREÇO (cancela valor negativo)
+-- =====================================================================
+
+-- TRIGGER trg_ebook_valor_bi: impede cadastrar e-book com valor de empréstimo negativo.
+DROP TRIGGER IF EXISTS trg_ebook_valor_bi$$
+CREATE TRIGGER trg_ebook_valor_bi BEFORE INSERT ON ebook
+FOR EACH ROW
+BEGIN
+  IF NEW.valor_emprestimo < 0 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Valor de empréstimo não pode ser negativo';
+  END IF;
+END$$
+
+-- TRIGGER trg_ebook_valor_bu: impede editar um e-book para um valor negativo.
+DROP TRIGGER IF EXISTS trg_ebook_valor_bu$$
+CREATE TRIGGER trg_ebook_valor_bu BEFORE UPDATE ON ebook
+FOR EACH ROW
+BEGIN
+  IF NEW.valor_emprestimo < 0 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Valor de empréstimo não pode ser negativo';
+  END IF;
+END$$
+
+-- TRIGGER trg_audiobook_valor_bi: impede cadastrar audiobook com valor negativo.
+DROP TRIGGER IF EXISTS trg_audiobook_valor_bi$$
+CREATE TRIGGER trg_audiobook_valor_bi BEFORE INSERT ON audiobook
+FOR EACH ROW
+BEGIN
+  IF NEW.valor_emprestimo < 0 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Valor de empréstimo não pode ser negativo';
+  END IF;
+END$$
+
+-- TRIGGER trg_audiobook_valor_bu: impede editar um audiobook para um valor negativo.
+DROP TRIGGER IF EXISTS trg_audiobook_valor_bu$$
+CREATE TRIGGER trg_audiobook_valor_bu BEFORE UPDATE ON audiobook
+FOR EACH ROW
+BEGIN
+  IF NEW.valor_emprestimo < 0 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Valor de empréstimo não pode ser negativo';
+  END IF;
+END$$
+
+-- =====================================================================
+-- TRIGGERS: AUDITORIA DO ADMINISTRADOR
+-- O site deve executar, após o login do admin e na mesma conexão:
+--   SET @id_admin = <id_usuario do administrador>;
+-- Sem essa variável, nenhum log é gravado.
+-- =====================================================================
+
+-- TRIGGER trg_obra_bi: preenche automaticamente qual administrador cadastrou a obra (@id_admin).
+DROP TRIGGER IF EXISTS trg_obra_bi$$
+CREATE TRIGGER trg_obra_bi BEFORE INSERT ON obra
+FOR EACH ROW
+BEGIN
+  IF NEW.id_admin_cadastro IS NULL THEN
+    SET NEW.id_admin_cadastro = @id_admin;
+  END IF;
+END$$
+
+-- TRIGGER trg_obra_ai: grava no log_administracao quando uma obra é cadastrada.
+DROP TRIGGER IF EXISTS trg_obra_ai$$
+CREATE TRIGGER trg_obra_ai AFTER INSERT ON obra
+FOR EACH ROW
+BEGIN
+  IF @id_admin IS NOT NULL THEN
+    INSERT INTO log_administracao (id_administrador, tabela_afetada, id_registro, acao, descricao)
+    VALUES (@id_admin, 'obra', NEW.id_obra, 'inserir', CONCAT('Obra cadastrada: ', NEW.titulo));
+  END IF;
+END$$
+
+-- TRIGGER trg_obra_au: grava no log_administracao quando uma obra é editada.
+DROP TRIGGER IF EXISTS trg_obra_au$$
+CREATE TRIGGER trg_obra_au AFTER UPDATE ON obra
+FOR EACH ROW
+BEGIN
+  IF @id_admin IS NOT NULL THEN
+    INSERT INTO log_administracao (id_administrador, tabela_afetada, id_registro, acao, descricao)
+    VALUES (@id_admin, 'obra', NEW.id_obra, 'editar', CONCAT('Obra editada: ', NEW.titulo));
+  END IF;
+END$$
+
+-- TRIGGER trg_obra_ad: grava no log_administracao quando uma obra é excluída.
+DROP TRIGGER IF EXISTS trg_obra_ad$$
+CREATE TRIGGER trg_obra_ad AFTER DELETE ON obra
+FOR EACH ROW
+BEGIN
+  IF @id_admin IS NOT NULL THEN
+    INSERT INTO log_administracao (id_administrador, tabela_afetada, id_registro, acao, descricao)
+    VALUES (@id_admin, 'obra', OLD.id_obra, 'excluir', CONCAT('Obra excluída: ', OLD.titulo));
+  END IF;
+END$$
+
+-- TRIGGER trg_ebook_ai: grava no log_administracao quando um e-book é cadastrado.
+DROP TRIGGER IF EXISTS trg_ebook_ai$$
+CREATE TRIGGER trg_ebook_ai AFTER INSERT ON ebook
+FOR EACH ROW
+BEGIN
+  IF @id_admin IS NOT NULL THEN
+    INSERT INTO log_administracao (id_administrador, tabela_afetada, id_registro, acao, descricao)
+    VALUES (@id_admin, 'ebook', NEW.id_ebook, 'inserir', CONCAT('E-book cadastrado (obra ', NEW.id_obra, ')'));
+  END IF;
+END$$
+
+-- TRIGGER trg_ebook_au: grava no log_administracao quando um e-book é editado.
+DROP TRIGGER IF EXISTS trg_ebook_au$$
+CREATE TRIGGER trg_ebook_au AFTER UPDATE ON ebook
+FOR EACH ROW
+BEGIN
+  IF @id_admin IS NOT NULL THEN
+    INSERT INTO log_administracao (id_administrador, tabela_afetada, id_registro, acao, descricao)
+    VALUES (@id_admin, 'ebook', NEW.id_ebook, 'editar', CONCAT('E-book editado (obra ', NEW.id_obra, ')'));
+  END IF;
+END$$
+
+-- TRIGGER trg_ebook_ad: grava no log_administracao quando um e-book é excluído.
+DROP TRIGGER IF EXISTS trg_ebook_ad$$
+CREATE TRIGGER trg_ebook_ad AFTER DELETE ON ebook
+FOR EACH ROW
+BEGIN
+  IF @id_admin IS NOT NULL THEN
+    INSERT INTO log_administracao (id_administrador, tabela_afetada, id_registro, acao, descricao)
+    VALUES (@id_admin, 'ebook', OLD.id_ebook, 'excluir', CONCAT('E-book excluído (obra ', OLD.id_obra, ')'));
+  END IF;
+END$$
+
+-- TRIGGER trg_audiobook_ai: grava no log_administracao quando um audiobook é cadastrado.
+DROP TRIGGER IF EXISTS trg_audiobook_ai$$
+CREATE TRIGGER trg_audiobook_ai AFTER INSERT ON audiobook
+FOR EACH ROW
+BEGIN
+  IF @id_admin IS NOT NULL THEN
+    INSERT INTO log_administracao (id_administrador, tabela_afetada, id_registro, acao, descricao)
+    VALUES (@id_admin, 'audiobook', NEW.id_audiobook, 'inserir', CONCAT('Audiobook cadastrado (obra ', NEW.id_obra, ')'));
+  END IF;
+END$$
+
+-- TRIGGER trg_audiobook_au: grava no log_administracao quando um audiobook é editado.
+DROP TRIGGER IF EXISTS trg_audiobook_au$$
+CREATE TRIGGER trg_audiobook_au AFTER UPDATE ON audiobook
+FOR EACH ROW
+BEGIN
+  IF @id_admin IS NOT NULL THEN
+    INSERT INTO log_administracao (id_administrador, tabela_afetada, id_registro, acao, descricao)
+    VALUES (@id_admin, 'audiobook', NEW.id_audiobook, 'editar', CONCAT('Audiobook editado (obra ', NEW.id_obra, ')'));
+  END IF;
+END$$
+
+-- TRIGGER trg_audiobook_ad: grava no log_administracao quando um audiobook é excluído.
+DROP TRIGGER IF EXISTS trg_audiobook_ad$$
+CREATE TRIGGER trg_audiobook_ad AFTER DELETE ON audiobook
+FOR EACH ROW
+BEGIN
+  IF @id_admin IS NOT NULL THEN
+    INSERT INTO log_administracao (id_administrador, tabela_afetada, id_registro, acao, descricao)
+    VALUES (@id_admin, 'audiobook', OLD.id_audiobook, 'excluir', CONCAT('Audiobook excluído (obra ', OLD.id_obra, ')'));
+  END IF;
+END$$
+
+DELIMITER ;
+
+-- =====================================================================
+-- EXEMPLOS DE CONSULTAS
+-- =====================================================================
+-- Obras mais bem avaliadas
+-- Livros mais emprestados
+-- Total arrecadado com empréstimos
+-- Dias restantes de um empréstimo
