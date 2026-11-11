@@ -11,5 +11,7 @@ public interface AcessoDigitalRepository {
 
     Optional<AcessoDigitalDomain> findById(UUID idAcessoDigital);
 
+    void deleteById(UUID idAcessoDigital);
+
     List<AcessoDigitalDomain> findAllByAcessoDigitalId(UUID idAcessoDigital);
 }
