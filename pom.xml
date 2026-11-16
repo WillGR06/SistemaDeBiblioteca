@@ -24,8 +24,8 @@
     <!-- valor padrão; o JaCoCo preenche quando roda junto com os testes -->
     <argLine></argLine>
     <!-- SonarCloud: troque pelos dados do seu projeto -->
-    <sonar.organization>BibliotecaDigitalUnisul</sonar.organization>
-    <sonar.projectKey>bibliotecadigital123</sonar.projectKey>
+    <sonar.organization>bibliotecadigital123</sonar.organization>
+    <sonar.projectKey>bibliotecaprojetounisul</sonar.projectKey>
     <sonar.host.url>https://sonarcloud.io</sonar.host.url>
     <sonar.coverage.jacoco.xmlReportPaths>target/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     <sonar.coverage.exclusions>**/BibliotecaApplication.java</sonar.coverage.exclusions>
