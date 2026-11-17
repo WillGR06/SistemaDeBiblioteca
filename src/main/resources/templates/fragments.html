@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<body>
+
+<header th:fragment="topo" class="topo">
+  <a th:href="@{/}" class="logo">Biblioteca Digital</a>
+  <nav>
+    <a th:href="@{/livros}">Catálogo</a>
+    <a sec:authorize="isAuthenticated()" th:href="@{/emprestimos}">Meus empréstimos</a>
+    <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin/obras}">Administração</a>
+    <span sec:authorize="isAuthenticated()" class="usuario">Olá, <span sec:authentication="principal.nome">Nome</span></span>
+    <form sec:authorize="isAuthenticated()" th:action="@{/logout}" method="post" class="inline">
+      <button type="submit" class="link">Sair</button>
+    </form>
+    <a sec:authorize="isAnonymous()" th:href="@{/login}">Entrar</a>
+    <a sec:authorize="isAnonymous()" th:href="@{/cadastro}">Cadastrar</a>
+  </nav>
+</header>
+
+<div th:fragment="mensagens">
+  <p th:if="${msg}" class="alerta ok" th:text="${msg}">Mensagem</p>
+  <p th:if="${erro}" class="alerta erro" th:text="${erro}">Erro</p>
+</div>
+
+</body>
+</html>

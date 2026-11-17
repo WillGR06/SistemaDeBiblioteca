@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entrar</title>
+  <link rel="stylesheet" th:href="@{/css/estilo.css}">
+</head>
+<body>
+  <header th:replace="~{fragments :: topo}"></header>
+
+  <main class="estreito">
+    <h2>Entrar</h2>
+    <div th:replace="~{fragments :: mensagens}"></div>
+    <p th:if="${param.error}" class="alerta erro">E-mail ou senha inválidos.</p>
+    <p th:if="${param.logout}" class="alerta ok">Você saiu da sua conta.</p>
+
+    <form th:action="@{/login}" method="post" class="formulario">
+      <label>E-mail <input type="email" name="email" required autofocus></label>
+      <label>Senha <input type="password" name="password" required></label>
+      <button type="submit">Entrar</button>
+    </form>
+    <p>Não tem conta? <a th:href="@{/cadastro}">Cadastre-se</a></p>
+  </main>
+</body>
+</html>
