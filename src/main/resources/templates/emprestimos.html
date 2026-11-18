@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meus empréstimos</title>
+  <link rel="stylesheet" th:href="@{/css/estilo.css}">
+</head>
+<body>
+  <header th:replace="~{fragments :: topo}"></header>
+
+  <main>
+    <h2>Meus empréstimos</h2>
+    <div th:replace="~{fragments :: mensagens}"></div>
+
+    <p th:if="${#lists.isEmpty(emprestimos)}" class="vazio">
+      Você ainda não emprestou nenhum livro. <a th:href="@{/livros}">Ver catálogo</a>
+    </p>
+
+    <div class="tabela-wrap" th:unless="${#lists.isEmpty(emprestimos)}">
+      <table>
+        <thead>
+          <tr>
+            <th>Livro</th><th>Tipo</th><th>Emprestado em</th><th>Vence em</th>
+            <th>Bloqueado em</th><th>Situação</th><th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr th:each="e : ${emprestimos}">
+            <td th:text="${e.titulo()}">Título</td>
+            <td th:text="${e.tipo()}">E-book</td>
+            <td th:text="${e.emprestadoEm()}">-</td>
+            <td th:text="${e.vencimento()}">-</td>
+            <td th:text="${e.bloqueadoEm() != null ? e.bloqueadoEm() : '-'}">-</td>
+            <td>
+              <span class="badge"
+                    th:classappend="${e.situacao() == 'Emprestado' ? 'ativo' : (e.situacao() == 'Bloqueado' ? 'bloqueado' : 'devolvido')}"
+                    th:text="${e.situacao()}">Emprestado</span>
+              <small th:if="${e.situacao() == 'Emprestado'}" th:text="${e.diasRestantes()} + ' dia(s) restante(s)'"></small>
+            </td>
+            <td>
+              <div class="linha" th:if="${e.situacao() == 'Emprestado'}">
+                <a class="botao" th:href="@{/emprestimos/{id}/ler(id=${e.id()})}">Ler</a>
+                <form th:action="@{/emprestimos/{id}/devolver(id=${e.id()})}" method="post" class="inline">
+                  <button type="submit" class="secundario">Devolver</button>
+                </form>
+              </div>
+              <span th:unless="${e.situacao() == 'Emprestado'}" class="vazio">Acesso bloqueado</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>

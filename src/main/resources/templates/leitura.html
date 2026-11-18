@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Leitura</title>
+  <link rel="stylesheet" th:href="@{/css/estilo.css}">
+</head>
+<body>
+  <header th:replace="~{fragments :: topo}"></header>
+
+  <main class="estreito">
+    <a th:href="@{/emprestimos}">← Meus empréstimos</a>
+    <h2 th:text="${acesso.titulo()}">Título</h2>
+    <p class="alerta ok" th:text="'Acesso liberado por mais ' + ${acesso.diasRestantes()} + ' dia(s).'"></p>
+
+    <p><a class="botao" th:href="@{${acesso.url()}}" target="_blank">Abrir arquivo</a></p>
+
+    <h3>Seu progresso</h3>
+    <!-- E-book com número de páginas: progresso em páginas (0 até o total) -->
+    <form th:if="${acesso.porPagina()}"
+          th:action="@{/emprestimos/{id}/pagina(id=${acesso.idEmprestimo()})}" method="post" class="linha">
+      <input type="number" name="pagina" min="0" th:max="${acesso.totalPaginas()}" step="1"
+             th:value="${acesso.paginaAtual()}" required>
+      <span th:text="'de ' + ${acesso.totalPaginas()} + ' páginas'">de 250 páginas</span>
+      <button type="submit">Salvar progresso</button>
+    </form>
+
+    <!-- Obra sem número de páginas (ex.: audiobook): continua em percentual -->
+    <form th:unless="${acesso.porPagina()}"
+          th:action="@{/emprestimos/{id}/progresso(id=${acesso.idEmprestimo()})}" method="post" class="linha">
+      <input type="number" name="percentual" min="0" max="100" step="1"
+             th:value="${#numbers.formatDecimal(acesso.progresso(), 1, 0)}" required>
+      <span>%</span>
+      <button type="submit">Salvar progresso</button>
+    </form>
+  </main>
+</body>
+</html>
