@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="${livro.titulo()}">Livro</title>
+  <link rel="stylesheet" th:href="@{/css/estilo.css}">
+</head>
+<body>
+  <header th:replace="~{fragments :: topo}"></header>
+
+  <main class="estreito">
+    <div th:replace="~{fragments :: mensagens}"></div>
+    <a th:href="@{/livros}">← Voltar ao catálogo</a>
+
+    <img class="capa capa-detalhe" th:if="${livro.temCapa()}" th:src="@{${livro.capaUrl()}}"
+         th:alt="'Capa de ' + ${livro.titulo()}">
+    <h2 th:text="${livro.titulo()}">Título</h2>
+    <p class="autor" th:text="${livro.autores()}">Autor</p>
+    <p class="meta">
+      <span th:text="${livro.idioma()}">Português</span>
+      <span th:if="${livro.anoPublicacao() != null}" th:text="'· ' + ${livro.anoPublicacao()}">· 2000</span>
+    </p>
+    <p th:text="${livro.sinopse()}">Sinopse</p>
+    <p class="nota" th:text="'Nota média: ' + ${#numbers.formatDecimal(livro.media(), 1, 1)}">Nota média</p>
+
+    <h3>Disponível para empréstimo (30 dias)</h3>
+    <p th:if="${#lists.isEmpty(formatos)}" class="vazio">Nenhum formato digital cadastrado.</p>
+
+    <div class="card formato" th:each="f : ${formatos}">
+      <div>
+        <strong th:text="${f.tipo() == 'ebook' ? 'E-book' : 'Audiobook'}">E-book</strong>
+        <span class="meta" th:text="${f.formato()}">EPUB</span>
+        <span class="preco" th:text="'R$ ' + ${#numbers.formatDecimal(f.valor(), 1, 'POINT', 2, 'COMMA')}">R$ 9,90</span>
+      </div>
+
+      <form sec:authorize="isAuthenticated()" th:action="@{/emprestimos}" method="post" class="linha">
+        <input type="hidden" name="idEbook" th:if="${f.tipo() == 'ebook'}" th:value="${f.id()}">
+        <input type="hidden" name="idAudiobook" th:if="${f.tipo() == 'audiobook'}" th:value="${f.id()}">
+        <select name="forma">
+          <option value="pix">Pix</option>
+          <option value="cartao_credito">Cartão de crédito</option>
+          <option value="cartao_debito">Cartão de débito</option>
+          <option value="boleto">Boleto</option>
+        </select>
+        <button type="submit">Emprestar por 30 dias</button>
+      </form>
+      <a sec:authorize="isAnonymous()" th:href="@{/login}">Entre para emprestar</a>
+    </div>
+    <h3>Avaliações</h3>
+
+    <form sec:authorize="isAuthenticated()" th:action="@{/livros/{id}/avaliar(id=${livro.idObra()})}" method="post" class="formulario">
+      <label>Sua nota
+        <select name="nota" required>
+          <option th:each="n : ${#numbers.sequence(5, 1, -1)}" th:value="${n}"
+                  th:text="${n} + (${n} == 1 ? ' estrela' : ' estrelas')"
+                  th:selected="${minha != null and minha.nota() == n}">5 estrelas</option>
+        </select>
+      </label>
+      <label>Comentário (opcional)
+        <textarea name="comentario" rows="3" maxlength="1000" th:text="${minha != null ? minha.comentario() : ''}"></textarea>
+      </label>
+      <button type="submit" th:text="${minha != null ? 'Atualizar avaliação' : 'Enviar avaliação'}">Enviar avaliação</button>
+    </form>
+    <p sec:authorize="isAnonymous()"><a th:href="@{/login}">Entre</a> para avaliar este livro.</p>
+
+    <p th:if="${#lists.isEmpty(avaliacoes)}" class="vazio">Este livro ainda não tem avaliações.</p>
+    <div class="card avaliacao" th:each="a : ${avaliacoes}">
+      <strong th:text="${a.usuario()}">Nome</strong>
+      <span class="estrelas" th:text="${'★'.repeat(a.nota()) + '☆'.repeat(5 - a.nota())}">★★★★★</span>
+      <small th:text="${a.data()}">01/01/2026</small>
+      <p th:if="${a.comentario() != null}" th:text="${a.comentario()}">Comentário</p>
+    </div>
+  </main>
+</body>
+</html>
