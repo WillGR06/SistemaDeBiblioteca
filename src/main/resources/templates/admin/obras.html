@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administração</title>
+  <link rel="stylesheet" th:href="@{/css/estilo.css}">
+</head>
+<body>
+  <header th:replace="~{fragments :: topo}"></header>
+
+  <main>
+    <h2>Administração do catálogo</h2>
+    <div th:replace="~{fragments :: mensagens}"></div>
+
+    <p class="linha">
+      <a class="botao" th:href="@{/admin/obras/nova}">+ Nova obra</a>
+      <a class="botao secundario" th:href="@{/admin/membros}">Gerenciar membros</a>
+      <a class="botao secundario" th:href="@{/admin/log}">Ver histórico de ações</a>
+    </p>
+
+    <div class="tabela-wrap">
+      <table>
+        <thead><tr><th>Capa</th><th>Título</th><th>Autor</th><th>Formatos</th><th>Ações</th></tr></thead>
+        <tbody>
+          <tr th:each="l : ${livros}">
+            <td>
+              <img class="capa-mini" th:if="${l.temCapa()}" th:src="@{${l.capaUrl()}}" th:alt="'Capa de ' + ${l.titulo()}">
+            </td>
+            <td th:text="${l.titulo()}">Título</td>
+            <td th:text="${l.autores()}">Autor</td>
+            <td>
+              <span class="tag" th:if="${l.temEbook()}">E-book</span>
+              <span class="tag audio" th:if="${l.temAudiobook()}">Audiobook</span>
+            </td>
+            <td>
+              <div class="linha">
+                <a class="botao" th:href="@{/admin/obras/{id}/editar(id=${l.idObra()})}">Editar</a>
+                <form th:action="@{/admin/obras/{id}/excluir(id=${l.idObra()})}" method="post" class="inline"
+                      onsubmit="return confirm('Excluir esta obra?');">
+                  <button type="submit" class="perigo">Excluir</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>

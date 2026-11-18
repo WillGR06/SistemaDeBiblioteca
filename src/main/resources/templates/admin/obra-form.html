@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="${tituloPagina}">Obra</title>
+  <link rel="stylesheet" th:href="@{/css/estilo.css}">
+</head>
+<body>
+  <header th:replace="~{fragments :: topo}"></header>
+
+  <main class="estreito">
+    <a th:href="@{/admin/obras}">← Voltar</a>
+    <h2 th:text="${tituloPagina}">Nova obra</h2>
+    <div th:replace="~{fragments :: mensagens}"></div>
+
+    <!-- O token CSRF vai também na URL: em formulários multipart o filtro de segurança não lê o corpo -->
+    <form th:action="@{/admin/obras(_csrf=${_csrf.token})}" method="post" enctype="multipart/form-data" class="formulario">
+      <input type="hidden" name="idObra" th:if="${form.idObra() != null}" th:value="${form.idObra()}">
+
+      <fieldset>
+        <legend>Dados da obra</legend>
+        <label>Título * <input type="text" name="titulo" th:value="${form.titulo()}" required maxlength="200"></label>
+        <label>Autor <input type="text" name="autor" th:value="${form.autor()}" maxlength="150"></label>
+        <label>Sinopse <textarea name="sinopse" rows="3" th:text="${form.sinopse()}"></textarea></label>
+        <label>Idioma <input type="text" name="idioma" th:value="${form.idioma()}" maxlength="30"></label>
+        <label>Ano de publicação <input type="number" name="anoPublicacao" th:value="${form.anoPublicacao()}" min="1000" max="2100"></label>
+        <label>Editora
+          <select name="idEditora" id="idEditora">
+            <option value="">(nenhuma)</option>
+            <option th:each="e : ${editoras}" th:value="${e['id_editora']}" th:text="${e['nome']}"
+                    th:selected="${form.idEditora() == e['id_editora']}">Editora</option>
+          </select>
+        </label>
+        <div>
+          <button type="button" class="secundario" id="btn-nova-editora">+ Nova editora</button>
+        </div>
+        <div class="nova-editora" id="painel-editora" hidden th:data-url="@{/admin/editoras}">
+          <label>Nome da editora * <input type="text" id="editora-nome" maxlength="120"></label>
+          <label>País <input type="text" id="editora-pais" maxlength="60"></label>
+          <div class="linha">
+            <button type="button" id="btn-salvar-editora">Adicionar editora</button>
+            <button type="button" class="secundario" id="btn-cancelar-editora">Cancelar</button>
+          </div>
+          <p class="alerta erro" id="editora-erro" hidden></p>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Imagem da capa</legend>
+        <img class="capa-previa" id="capa-previa" th:if="${capaAtual != null}" th:src="@{${capaAtual}}" alt="Capa atual">
+        <img class="capa-previa" id="capa-previa-nova" hidden alt="Nova capa">
+        <label>
+          <span th:text="${capaAtual != null} ? 'Trocar a imagem (opcional)' : 'Escolher imagem (opcional)'">Escolher imagem</span>
+          <input type="file" name="capa" id="capa" accept="image/png,image/jpeg,image/gif,image/webp">
+        </label>
+        <small>JPG, PNG, GIF ou WEBP, até 5 MB.</small>
+      </fieldset>
+
+      <fieldset>
+        <legend>Formatos disponíveis</legend>
+        <p>Escolha o que esta obra oferece (pode ser os dois):</p>
+        <div class="linha">
+          <button type="button" class="alternar" id="btn-ebook" data-alvo="bloco-ebook"
+                  th:classappend="${#strings.isEmpty(form.ebookUrl())} ? '' : 'ativo'">E-book</button>
+          <button type="button" class="alternar" id="btn-audio" data-alvo="bloco-audio"
+                  th:classappend="${#strings.isEmpty(form.audioUrl())} ? '' : 'ativo'">Audiobook</button>
+        </div>
+      </fieldset>
+
+      <fieldset id="bloco-ebook" th:hidden="${#strings.isEmpty(form.ebookUrl())}">
+        <legend>E-book</legend>
+        <label>Formato
+          <select name="ebookFormato">
+            <option th:each="x : ${ {'PDF','EPUB','MOBI'} }" th:value="${x}" th:text="${x}"
+                    th:selected="${form.ebookFormato() == x}">EPUB</option>
+          </select>
+        </label>
+        <label>Arquivo (caminho ou URL) <input type="text" name="ebookUrl" th:value="${form.ebookUrl()}"></label>
+        <label>Páginas <input type="number" name="ebookPaginas" th:value="${form.ebookPaginas()}" min="1"></label>
+        <label>Valor do empréstimo (R$) <input type="number" name="ebookValor" th:value="${form.ebookValor()}" step="0.01" min="0"></label>
+      </fieldset>
+
+      <fieldset id="bloco-audio" th:hidden="${#strings.isEmpty(form.audioUrl())}">
+        <legend>Audiobook</legend>
+        <label>Formato
+          <select name="audioFormato">
+            <option th:each="x : ${ {'MP3','M4B','AAC'} }" th:value="${x}" th:text="${x}"
+                    th:selected="${form.audioFormato() == x}">MP3</option>
+          </select>
+        </label>
+        <label>Arquivo (caminho ou URL) <input type="text" name="audioUrl" th:value="${form.audioUrl()}"></label>
+        <label>Narrador <input type="text" name="audioNarrador" th:value="${form.audioNarrador()}"></label>
+        <label>Duração (minutos) <input type="number" name="audioDuracao" th:value="${form.audioDuracao()}" min="1"></label>
+        <label>Valor do empréstimo (R$) <input type="number" name="audioValor" th:value="${form.audioValor()}" step="0.01" min="0"></label>
+      </fieldset>
+
+      <button type="submit">Salvar</button>
+    </form>
+  </main>
+
+  <script>
+    // Botões E-book / Audiobook: mostram ou escondem cada bloco de campos
+    document.querySelectorAll('button.alternar').forEach(function (botao) {
+      botao.addEventListener('click', function () {
+        var bloco = document.getElementById(botao.dataset.alvo);
+        bloco.hidden = !bloco.hidden;
+        botao.classList.toggle('ativo', !bloco.hidden);
+      });
+    });
+
+    // Prévia da imagem escolhida
+    document.getElementById('capa').addEventListener('change', function (e) {
+      var previa = document.getElementById('capa-previa-nova');
+      var arquivo = e.target.files[0];
+      if (arquivo) {
+        previa.src = URL.createObjectURL(arquivo);
+        previa.hidden = false;
+      } else {
+        previa.hidden = true;
+      }
+    });
+
+    // Cadastro rápido de editora, sem sair do formulário da obra
+    (function () {
+      var painel = document.getElementById('painel-editora');
+      var nome = document.getElementById('editora-nome');
+      var pais = document.getElementById('editora-pais');
+      var erro = document.getElementById('editora-erro');
+      var select = document.getElementById('idEditora');
+      var token = document.querySelector('input[name="_csrf"]');
+
+      function mostrarErro(texto) {
+        erro.textContent = texto;
+        erro.hidden = !texto;
+      }
+
+      function fechar() {
+        painel.hidden = true;
+        nome.value = '';
+        pais.value = '';
+        mostrarErro('');
+      }
+
+      function salvar() {
+        var corpo = new URLSearchParams();
+        corpo.set('nome', nome.value);
+        corpo.set('pais', pais.value);
+        if (token) { corpo.set('_csrf', token.value); }
+        fetch(painel.dataset.url, { method: 'POST', body: corpo })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, dados: d }; }); })
+          .then(function (res) {
+            if (!res.ok) { mostrarErro(res.dados.erro || 'Não foi possível cadastrar a editora.'); return; }
+            var existente = select.querySelector('option[value="' + res.dados.id + '"]');
+            if (!existente) {
+              existente = document.createElement('option');
+              existente.value = res.dados.id;
+              existente.textContent = res.dados.nome;
+              select.appendChild(existente);
+            }
+            select.value = String(res.dados.id);
+            fechar();
+          })
+          .catch(function () { mostrarErro('Não foi possível cadastrar a editora.'); });
+      }
+
+      document.getElementById('btn-nova-editora').addEventListener('click', function () {
+        painel.hidden = !painel.hidden;
+        if (!painel.hidden) { nome.focus(); }
+      });
+      document.getElementById('btn-cancelar-editora').addEventListener('click', fechar);
+      document.getElementById('btn-salvar-editora').addEventListener('click', salvar);
+      [nome, pais].forEach(function (campo) {
+        campo.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') { e.preventDefault(); salvar(); }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
