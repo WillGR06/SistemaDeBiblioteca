@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Biblioteca Digital</title>
+  <link rel="stylesheet" th:href="@{/css/estilo.css}">
+</head>
+<body>
+  <header th:replace="~{fragments :: topo}"></header>
+
+  <main>
+    <div th:replace="~{fragments :: mensagens}"></div>
+
+    <form th:action="@{/livros}" method="get" class="busca">
+      <input type="text" name="busca" th:value="${busca}" placeholder="Buscar por título ou autor">
+      <button type="submit">Buscar</button>
+    </form>
+
+    <p th:if="${#lists.isEmpty(livros)}" class="vazio">Nenhum livro encontrado.</p>
+
+    <div class="grade">
+      <article class="card" th:each="livro : ${livros}">
+        <a th:if="${livro.temCapa()}" th:href="@{/livros/{id}(id=${livro.idObra()})}">
+          <img class="capa" th:src="@{${livro.capaUrl()}}" th:alt="'Capa de ' + ${livro.titulo()}">
+        </a>
+        <h2><a th:href="@{/livros/{id}(id=${livro.idObra()})}" th:text="${livro.titulo()}">Título</a></h2>
+        <p class="autor" th:text="${livro.autores()}">Autor</p>
+        <p class="meta">
+          <span th:text="${livro.idioma()}">Português</span>
+          <span th:if="${livro.anoPublicacao() != null}" th:text="'· ' + ${livro.anoPublicacao()}">· 2000</span>
+        </p>
+        <p class="sinopse" th:text="${livro.sinopse()}">Sinopse</p>
+        <p class="formatos">
+          <span class="tag" th:if="${livro.temEbook()}">E-book</span>
+          <span class="tag audio" th:if="${livro.temAudiobook()}">Audiobook</span>
+        </p>
+        <p class="nota" th:text="'Nota média: ' + ${#numbers.formatDecimal(livro.media(), 1, 1)}">Nota média: 0,0</p>
+      </article>
+    </div>
+  </main>
+</body>
+</html>
