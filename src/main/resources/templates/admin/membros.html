@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestão de membros</title>
+  <link rel="stylesheet" th:href="@{/css/estilo.css}">
+</head>
+<body>
+  <header th:replace="~{fragments :: topo}"></header>
+
+  <main>
+    <a th:href="@{/admin/obras}">← Administração</a>
+    <h2>Gestão de membros</h2>
+    <div th:replace="~{fragments :: mensagens}"></div>
+
+    <form th:action="@{/admin/membros}" method="get" class="busca">
+      <input type="text" name="busca" th:value="${busca}" placeholder="Buscar por nome ou e-mail">
+      <button type="submit">Buscar</button>
+    </form>
+
+    <p th:if="${#lists.isEmpty(membros)}" class="vazio">Nenhum membro encontrado.</p>
+
+    <div class="tabela-wrap" th:unless="${#lists.isEmpty(membros)}">
+      <table>
+        <thead>
+          <tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Situação</th><th>Cadastro</th><th>Empréstimos</th><th>Ações</th></tr>
+        </thead>
+        <tbody>
+          <tr th:each="m : ${membros}">
+            <td><span th:text="${m.nome()}">Nome</span> <small th:if="${m.id() == meuId}">(você)</small></td>
+            <td th:text="${m.email()}">email</td>
+            <td th:text="${m.perfil() == 'administrador' ? 'Administrador' : 'Leitor'}">Leitor</td>
+            <td>
+              <span class="badge" th:classappend="${m.ativo() ? 'ativo' : 'bloqueado'}"
+                    th:text="${m.ativo() ? 'Ativo' : 'Inativo'}">Ativo</span>
+            </td>
+            <td th:text="${m.cadastro()}">01/01/2026</td>
+            <td th:text="${m.totalEmprestimos()}">0</td>
+            <td>
+              <span th:if="${m.id() == meuId}" class="vazio">-</span>
+              <div class="linha" th:unless="${m.id() == meuId}">
+                <form th:action="@{/admin/membros/{id}/status(id=${m.id()})}" method="post" class="inline">
+                  <input type="hidden" name="ativo" th:value="${!m.ativo()}">
+                  <button type="submit" th:class="${m.ativo() ? 'perigo' : ''}"
+                          th:text="${m.ativo() ? 'Desativar' : 'Ativar'}">Desativar</button>
+                </form>
+                <form th:action="@{/admin/membros/{id}/perfil(id=${m.id()})}" method="post" class="inline">
+                  <input type="hidden" name="perfil"
+                         th:value="${m.perfil() == 'administrador' ? 'usuario' : 'administrador'}">
+                  <button type="submit" class="secundario"
+                          th:text="${m.perfil() == 'administrador' ? 'Tornar leitor' : 'Tornar administrador'}">Tornar administrador</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>
