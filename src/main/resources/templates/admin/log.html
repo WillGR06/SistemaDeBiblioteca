@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Histórico de ações</title>
+  <link rel="stylesheet" th:href="@{/css/estilo.css}">
+</head>
+<body>
+  <header th:replace="~{fragments :: topo}"></header>
+
+  <main>
+    <a th:href="@{/admin/obras}">← Voltar</a>
+    <h2>Histórico de ações dos administradores</h2>
+    <p class="vazio" th:if="${#lists.isEmpty(logs)}">Nenhuma ação registrada ainda.</p>
+
+    <div class="tabela-wrap" th:unless="${#lists.isEmpty(logs)}">
+      <table>
+        <thead><tr><th>Quando</th><th>Administrador</th><th>Tabela</th><th>Ação</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr th:each="l : ${logs}">
+            <td th:text="${l['data_acao']}">-</td>
+            <td th:text="${l['administrador']}">-</td>
+            <td th:text="${l['tabela_afetada']}">-</td>
+            <td th:text="${l['acao']}">-</td>
+            <td th:text="${l['descricao']}">-</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>
