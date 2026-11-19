@@ -20,7 +20,8 @@
     <!-- E-book com número de páginas: progresso em páginas (0 até o total) -->
     <form th:if="${acesso.porPagina()}"
           th:action="@{/emprestimos/{id}/pagina(id=${acesso.idEmprestimo()})}" method="post" class="linha">
-      <input type="number" name="pagina" min="0" th:max="${acesso.totalPaginas()}" step="1"
+      <label for="pagina" class="sr-only">Página atual</label>
+      <input id="pagina" type="number" name="pagina" min="0" th:max="${acesso.totalPaginas()}" step="1"
              th:value="${acesso.paginaAtual()}" required>
       <span th:text="'de ' + ${acesso.totalPaginas()} + ' páginas'">de 250 páginas</span>
       <button type="submit">Salvar progresso</button>
@@ -29,7 +30,8 @@
     <!-- Obra sem número de páginas (ex.: audiobook): continua em percentual -->
     <form th:unless="${acesso.porPagina()}"
           th:action="@{/emprestimos/{id}/progresso(id=${acesso.idEmprestimo()})}" method="post" class="linha">
-      <input type="number" name="percentual" min="0" max="100" step="1"
+      <label for="percentual" class="sr-only">Progresso em porcentagem</label>
+      <input id="percentual" type="number" name="percentual" min="0" max="100" step="1"
              th:value="${#numbers.formatDecimal(acesso.progresso(), 1, 0)}" required>
       <span>%</span>
       <button type="submit">Salvar progresso</button>

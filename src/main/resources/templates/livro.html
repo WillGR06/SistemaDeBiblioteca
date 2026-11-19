@@ -37,12 +37,15 @@
       <form sec:authorize="isAuthenticated()" th:action="@{/emprestimos}" method="post" class="linha">
         <input type="hidden" name="idEbook" th:if="${f.tipo() == 'ebook'}" th:value="${f.id()}">
         <input type="hidden" name="idAudiobook" th:if="${f.tipo() == 'audiobook'}" th:value="${f.id()}">
-        <select name="forma">
-          <option value="pix">Pix</option>
-          <option value="cartao_credito">Cartão de crédito</option>
-          <option value="cartao_debito">Cartão de débito</option>
-          <option value="boleto">Boleto</option>
-        </select>
+        <label>
+          <span class="sr-only">Forma de pagamento</span>
+          <select name="forma">
+            <option value="pix">Pix</option>
+            <option value="cartao_credito">Cartão de crédito</option>
+            <option value="cartao_debito">Cartão de débito</option>
+            <option value="boleto">Boleto</option>
+          </select>
+        </label>
         <button type="submit">Emprestar por 30 dias</button>
       </form>
       <a sec:authorize="isAnonymous()" th:href="@{/login}">Entre para emprestar</a>

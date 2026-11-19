@@ -13,7 +13,8 @@
     <div th:replace="~{fragments :: mensagens}"></div>
 
     <form th:action="@{/livros}" method="get" class="busca">
-      <input type="text" name="busca" th:value="${busca}" placeholder="Buscar por título ou autor">
+      <label for="busca" class="sr-only">Buscar por título ou autor</label>
+      <input id="busca" type="text" name="busca" th:value="${busca}" placeholder="Buscar por título ou autor">
       <button type="submit">Buscar</button>
     </form>
 

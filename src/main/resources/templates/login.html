@@ -16,7 +16,7 @@
     <p th:if="${param.logout}" class="alerta ok">Você saiu da sua conta.</p>
 
     <form th:action="@{/login}" method="post" class="formulario">
-      <label>E-mail <input type="email" name="email" required autofocus></label>
+      <label>E-mail <input type="email" name="email" required></label>
       <label>Senha <input type="password" name="password" required></label>
       <button type="submit">Entrar</button>
     </form>

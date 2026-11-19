@@ -15,7 +15,8 @@
     <div th:replace="~{fragments :: mensagens}"></div>
 
     <form th:action="@{/admin/membros}" method="get" class="busca">
-      <input type="text" name="busca" th:value="${busca}" placeholder="Buscar por nome ou e-mail">
+      <label for="busca" class="sr-only">Buscar por nome ou e-mail</label>
+      <input id="busca" type="text" name="busca" th:value="${busca}" placeholder="Buscar por nome ou e-mail">
       <button type="submit">Buscar</button>
     </form>
 
