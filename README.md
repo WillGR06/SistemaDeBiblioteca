@@ -116,11 +116,11 @@ Os livros podem ser cadastrados pelo próprio site, pela conta do administrador.
 ## Equipe
 | Aluno | Cargo | Parte do sistema |
 |---|---|---|
-| William | Lider de Equipe/Desenvolvedor | Base do projeto, login e cadastro de usuários |
-| Amanda | DevOps/Desenvolvedora | Administração de obras: cadastro, editoras, capas e histórico |
-| Luiz | DevOps/Desenvolvedor | Empréstimo, devolução e leitura com progresso por página; pipeline (GitHub Actions e SonarCloud) |
-| Guilherme | Testador/Desenvolvedor | Catálogo e detalhe do livro; testes dos repositórios |
-| Vitor | Testador/Desenvolvedor | Gestão de membros e avaliações; testes das telas |
+| William | Lider de Equipe | Base do projeto, login e cadastro de usuários |
+| Amanda | Desenvolvedora | Administração de obras: cadastro, editoras, capas e histórico |
+| Luiz | DevOps | Empréstimo, devolução e leitura com progresso por página; pipeline (GitHub Actions e SonarCloud) |
+| Guilherme | Testador | Catálogo e detalhe do livro; testes dos repositórios |
+| Vitor | Testador | Gestão de membros e avaliações; testes das telas |
 
 ## Licença
 Distribuído sob a licença MIT. Veja o arquivo `LICENSE`.
